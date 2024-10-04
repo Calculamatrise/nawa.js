@@ -91,13 +91,6 @@ export default {
 			}
 		}
 	},
-	menus: {
-		message: {
-			name: "eval",
-			defaultMemberPermissions: 0n,
-			type: 3
-		}
-	},
 	options: [{
 		name: "input",
 		description: "Code you wish to execute",

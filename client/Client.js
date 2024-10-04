@@ -32,18 +32,42 @@ export default class extends Client {
 				writable: true
 			});
 			await this.database.createStore('guilds', {
-				adhan: {
-					channelId: null,
-					dailyPrayers: [],
-					mentions: [],
-					timezone: null
+				reminders: {
+					adhan: {
+						channelId: null,
+						mentions: [],
+						timezone: null
+					},
+					ayamAlBid: {
+						channelId: null,
+						mentions: [],
+						timezone: null
+					},
+					siyam: {
+						channelId: null,
+						mentions: [],
+						timezone: null
+					},
+					yasum: {
+						channelId: null,
+						mentions: [],
+						timezone: null
+					}
 				},
 				alerts: {
-					adhan: null,
-					memberJoin: null,
-					memberPart: null
+					memberBoost: {
+						channelId: null,
+						customMessage: null
+					},
+					memberJoin: {
+						channelId: null,
+						customMessage: null
+					},
+					memberPart: {
+						channelId: null,
+						customMessage: null
+					}
 				},
-				base: null,
 				name: null,
 				roles: []
 			});
@@ -51,10 +75,7 @@ export default class extends Client {
 				subscribedGuildIds: [],
 				subscribedUserIds: []
 			});
-			await this.database.createStore('users', {
-				alerts: [],
-				base: null
-			});
+			await this.database.createStore('users', { alerts: [] });
 
 			// store member stats in the guild? — this would not
 			// require a database, and it would allow the server

@@ -1,27 +1,42 @@
+const choices = [{
+	name: 'Member Join',
+	value: 'memberJoin'
+}, {
+	name: 'Member Leave',
+	value: 'memberPart'
+}, {
+	name: 'Server Boost',
+	value: 'memberBoost'
+}];
+
 export default {
-	description: "Configure automated actions.",
+	contexts: [0],
 	defaultMemberPermissions: BigInt(1 << 5),
-	dmPermission: false,
+	description: "Configure automated actions.",
 	options: [{
-		name: "adhan-notification",
-		description: "Pings a role for the adhan",
+		name: "enable",
+		description: "Enable an automated feature",
 		type: 1,
 		options: [{
-			name: "role",
-			description: "A role that should be pinged upon adhan.",
-			type: 8
+			name: "event",
+			description: "Event for which an automation should be created",
+			required: true,
+			type: 3,
+			choices
 		}, {
-			name: "location",
-			description: "Specify a location to get an accurate timezone.",
+			name: "message",
+			description: "Set a custom message ({user} to reference the user's name and {server} for the server name)",
 			type: 3
 		}]
 	}, {
-		name: "toggle-join-notification",
-		description: "Welcome new members w/ a banner!",
-		type: 1
-	}, {
-		name: "toggle-leave-notification",
-		description: "Receive notifications when a member leaves the server",
-		type: 1
+		name: "disable",
+		description: "Disable an automated feature",
+		type: 1,
+		options: [{
+			name: "event",
+			description: "Event for which an automation should be created",
+			type: 3,
+			choices
+		}]
 	}]
 }

@@ -1,9 +1,9 @@
 import Adhan from "../utils/adhan.js";
 
 export default {
+	contexts: [0, 1, 2],
 	description: "Check the time for the adhan.",
 	async execute(interaction, options) {
-		// add args.shift() if args[0] is in DAILY_PRAYERS
 		let location = options.getString('location') || 'Vancouver, BC, Canada';
 		let requestedPrayer = options.getString('prayer');
 		let date = new Date();
