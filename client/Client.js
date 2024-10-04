@@ -4,6 +4,7 @@ import { Client } from "discord.js";
 
 import DatabaseManager from "../managers/database.js";
 import InteractionHandler from "../handlers/interactions.js";
+import Adhan from "../utils/adhan.js";
 
 export default class extends Client {
 	_defaultPresence = {
@@ -35,22 +36,34 @@ export default class extends Client {
 				reminders: {
 					adhan: {
 						channelId: null,
-						mentions: [],
+						mentions: {
+							roles: null,
+							users: null
+						},
 						timezone: null
 					},
 					ayamAlBid: {
 						channelId: null,
-						mentions: [],
+						mentions: {
+							roles: null,
+							users: null
+						},
 						timezone: null
 					},
 					siyam: {
 						channelId: null,
-						mentions: [],
+						mentions: {
+							roles: null,
+							users: null
+						},
 						timezone: null
 					},
 					yasum: {
 						channelId: null,
-						mentions: [],
+						mentions: {
+							roles: null,
+							users: null
+						},
 						timezone: null
 					}
 				},
@@ -71,11 +84,10 @@ export default class extends Client {
 				name: null,
 				roles: []
 			});
-			await this.database.createStore('reminders', {
-				subscribedGuildIds: [],
-				subscribedUserIds: []
-			});
-			await this.database.createStore('users', { alerts: [] });
+			await this.database.createStore('users', { reminders: [] });
+
+			// let nextPrayer = await Adhan.next('Vancouver, BC, Canada');
+			// this.emit('adhanStart', nextPrayer); // emit for testing
 
 			// store member stats in the guild? — this would not
 			// require a database, and it would allow the server

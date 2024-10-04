@@ -34,6 +34,7 @@ export default {
 			name: "timezone",
 			description: "Enter your city, province, and country for location-sepecific timings",
 			// autocomplete: true,
+			// choices: [{name: 'UTC-8'}, {}],
 			type: 3
 		}]
 	}, {

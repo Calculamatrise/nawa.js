@@ -23,6 +23,6 @@ export default async function () {
 	this.user.presence.set(this._defaultPresence);
 
 	let nextPrayer = await Adhan.next('Vancouver, BC, Canada');
-	// this.emit('adhanCreate', nextPrayer); // emit for testing
-	nextPrayer && (this._nextPrayerTimeout = setTimeout(this.emit.bind(this), nextPrayer.timeRemaining * 6e4, 'adhanCreate', nextPrayer))
+	// this.emit('adhanStart', nextPrayer); // emit for testing
+	nextPrayer && (this._nextPrayerTimeout = setTimeout(this.emit.bind(this), nextPrayer.timeRemaining * 6e4, 'adhanStart', nextPrayer))
 }
