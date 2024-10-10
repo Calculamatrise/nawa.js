@@ -27,7 +27,23 @@ export default {
 			name: "message",
 			description: "Set a custom message ({user} to reference the user's name and {server} for the server name)",
 			type: 3
-		}]
+		} /* , {
+			name: "theme",
+			description: "Pick a theme for the banner image",
+			type: 3,
+			choices: [] // fetch assets folder files
+		}, {
+			name: "style",
+			description: "Pick between the two theme styles for the banner image",
+			type: 3,
+			choices: [{
+				name: "Default",
+				value: ""
+			}, {
+				name: "Underlay",
+				value: "-alt"
+			}]
+		} */]
 	}, {
 		name: "disable",
 		description: "Disable an automated feature",

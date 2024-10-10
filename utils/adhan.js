@@ -1,18 +1,47 @@
-import EventEmitter from "events";
+export default class Adhan {
+	address = null;
+	passed = !1;
+	date = new Date();
+	prayer = null;
+	time = null;
+	timestamp = null;
+	timezone = null;
+	constructor(info) {
+		for (let key of Object.getOwnPropertyNames(this)) {
+			if (key in info) {
+				this[key] = info[key];
+			}
+		}
 
-export default class Adhan extends EventEmitter {
-	_location = null;
-	_timeout = null;
-	constructor(location /* info */) {
-		Object.defineProperty(this, '_location', { value: location, enumerable: false }),
-		Object.defineProperty(this, '_timeout', { enumerable: false }),
-		this._start()
+		Object.defineProperty(this, 'address', { enumerable: !1 })
 	}
 
-	async _start() {
-		const nextPrayer = await this.constructor.next(this._location);
-		nextPrayer && (this._timeout && clearTimeout(this._timeout),
-		this._timeout = setTimeout(this.emit.bind(this), nextPrayer.timeRemaining * 6e4, 'call', nextPrayer))
+	get hoursRemaining() {
+		return Math.floor(this.minutesRemaining / 60)
+	}
+
+	get minutesRemaining() {
+		return Math.floor(this.date.getTime() / 6e4 - this.constructor.localDate(this.timezone).getTime() / 6e4)
+	}
+
+	get offset() {
+		return Math.floor(this.date.getTime() / 8.64e7 - this.constructor.localDate(this.timezone).getTime() / 8.64e7)
+	}
+
+	get timeRemaining() {
+		let string = ''
+		  , hoursRemaining = this.hoursRemaining
+		  , minutesRemaining = this.minutesRemaining % 60;
+		hoursRemaining > 0 && (string += hoursRemaining + ' hour',
+		hoursRemaining > 1 && (string += 's'));
+		minutesRemaining > 0 && (string.length > 0 && (string += ' and '),
+		string += minutesRemaining + ' minute',
+		minutesRemaining > 1 && (string += 's'));
+		return string + ' remaining'
+	}
+
+	next() {
+		return this.constructor.next(this.timezone)
 	}
 
 	static _calculateMinutesRemaining(time, { date, offsetDate = 0 }) {
@@ -23,16 +52,14 @@ export default class Adhan extends EventEmitter {
 		return minutesRemaining
 	}
 
-	static async _fetchTimings(date, address, { offsetMonth } = {}) {
+	static async _fetchCalendar(date, address, { offsetMonth } = {}) {
 		offsetMonth && (date = new Date(date.getTime()),
 		date.setMonth(date.getMonth() + offsetMonth));
-		return fetch("https://api.aladhan.com/v1/calendarByAddress/" + date.getFullYear() + "/" + (1 + date.getMonth()) + "?" + new URLSearchParams({
-			address
-		}).toString()).then(r => r.json()).then(async ({ code, data }) => {
+		return fetch("https://api.aladhan.com/v1/calendarByAddress/" + date.getFullYear() + "/" + (1 + date.getMonth()) + "?" + new URLSearchParams({ address }).toString()).then(r => r.json()).then(async ({ code, data }) => {
 			if (code !== 200) {
 				throw new Error(data);
 			} else if (!offsetMonth && data.length <= date.getDate()) {
-				data = await this._fetchTimings(...arguments, { offsetMonth: 1 }).then(next => {
+				data = await this._fetchCalendar(...arguments, { offsetMonth: 1 }).then(next => {
 					return next.slice(0, date.getDate() - 1).concat(...data.slice(date.getDate() - 1))
 				});
 			}
@@ -57,21 +84,34 @@ export default class Adhan extends EventEmitter {
 
 	static async current(address) {
 		let timings = await this.timings({ address, appendNext: true, filterExpired: true });
-		return Object.values(timings).find(prayer => prayer.timeRemaining < 0 && !prayer.passed)
+		return Object.values(timings).find(prayer => prayer.minutesRemaining < 0 && !prayer.passed)
 	}
 
 	static async next(address) {
 		let timings = await this.timings({ address, appendNext: true, filterExpired: true });
-		return Object.values(timings).find(prayer => prayer.timeRemaining > 0)
+		return Object.values(timings).find(prayer => prayer.minutesRemaining > 0)
 	}
 
-	static async timings({ address, appendNext, filterExpired, filter, filterPrayers = true, offsetDate = 0, prayer } = {}) {
-		let date = new Date();
-		date.setTime(date.getTime() - date.getTimezoneOffset() * 6e4),
+	static async parseTimezone(address) {
+		if (typeof address != 'string') return null;
+		else if (this.verifyTimezone(address)) return address;
+		return fetch("https://api.aladhan.com/v1/timingsByAddress/" + new Date().toLocaleString('en-CA', {
+			year: 'numeric',
+			month: '2-digit',
+			day: '2-digit'
+		}).split('-').reverse().join('-') + "?" + new URLSearchParams({ address }).toString()).then(r => r.json()).then(async ({ code, data }) => {
+			if (code !== 200) {
+				throw new Error(data);
+			}
+			return data.meta.timezone
+		})
+	}
+
+	static async timings({ address, appendNext, filterExpired, filter, filterPrayers = true, offsetDate = 0, prayer, timezone } = {}) {
+		let date = this.localDate(timezone || await this.parseTimezone(address));
 		offsetDate && date.setDate(date.getDate() + offsetDate);
-		return this._fetchTimings(date, address).then(data => {
-			offsetDate && date.setDate(date.getDate() - offsetDate),
-			date.setTime(Date.parse(date.toLocaleString('en-US', { timeZone: data[0].meta.timezone })));
+		return this._fetchCalendar(date, address).then(data => {
+			offsetDate && date.setDate(date.getDate() - offsetDate);
 			let time = date.toLocaleTimeString('en-US', {
 				hour: '2-digit',
 				hourCycle: 'h23',
@@ -89,20 +129,21 @@ export default class Adhan extends EventEmitter {
 			today = data[(date.getDate() - 1 + offsetDate) % data.length],
 			timings = this.filterNonDailyPrayers(today.timings));
 			return Object.fromEntries(Object.entries(timings).map(([key, value]) => {
-				return [key, {
+				let timeRemaining = this._calculateMinutesRemaining(value, {
+					date,
+					offsetDate: key.toUpperCase() === 'ISHA' ? offsetDate++ : offsetDate
+				});
+				return [key, new this({
 					address,
-					offset: offsetDate,
+					date: new Date(date.getTime() + timeRemaining * 6e4),
 					prayer: key,
 					time: value,
-					timeRemaining: this._calculateMinutesRemaining(value, {
-						date,
-						offsetDate: key.toUpperCase() === 'ISHA' ? offsetDate++ : offsetDate
-					})
-				}]
+					timezone: today.meta.timezone
+				})]
 			}).map(([key, value], index, arr) => {
 				let next = arr[(index + 1) % arr.length];
 				return [key, Object.assign(value, {
-					passed: value.timeRemaining < 0 && next && next[1].timeRemaining < 0
+					passed: value.minutesRemaining < 0 && next && next[1].minutesRemaining < 0
 				})]
 			}))
 		})
@@ -117,7 +158,32 @@ export default class Adhan extends EventEmitter {
 		return Object.fromEntries(entries.filter(([,value], index) => (value.time || value) > time || (entries[index - 1] && (entries[index - 1][1].time || entries[index - 1][1]) > time)).reverse())
 	}
 
+	static localDate(timeZone) {
+		let date = this.offsetDate(...Array.prototype.slice.call(arguments, 1));
+		date.setTime(Date.parse(date.toLocaleString('en-US', { timeZone })));
+		return date
+	}
+
+	static offsetDate(base = Date.now()) {
+		let date = new Date(base);
+		date.setTime(date.getTime() - date.getTimezoneOffset() * 6e4);
+		return date
+	}
+
 	static toPrayer(string) {
 		return string.toLowerCase().replace(/^\w/, c => c.toUpperCase())
+	}
+
+	static verifyTimezone() {
+		try {
+			new Date().toLocaleString('en-US', { timeZone: address });
+			return !0
+		} catch {
+			return !1
+		}
+	}
+
+	static wikiPrayer(prayer) {
+		return "[" + prayer + "](<https://en.wikipedia.org/wiki/" + prayer.replace(/^dh?uhr$/i, 'Zuhr') + "_prayer>)"
 	}
 }

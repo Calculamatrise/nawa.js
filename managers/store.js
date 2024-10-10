@@ -103,9 +103,19 @@ export default class {
 	}
 	create = this.update;
 	async fetch(key, { force } = {}) {
-		if (!force && this.cache.has(key)) {
-			return this.cache.get(key);
+		if (!force) {
+			if (this.cache.has(key)) {
+				return this.cache.get(key);
+			} else if (this.cache.size > 0) {
+				return this.cache;
+			}
 		}
+		
+		if (!key) {
+			await this.entries();
+			return this.cache;
+		}
+
 		let entry = await this.#findAndParseEntry(key);
 		return (entry && entry[key]) ?? null
 	}
@@ -217,14 +227,17 @@ function recursivePurge(parent, object) {
 		}
 		return parent;
 	}
-	for (const key in object) {
+	for (let key in object) {
 		if (!object.hasOwnProperty(key)) continue;
 		if (object[key] instanceof Object) {
 			parent[key] = recursivePurge(parent[key], object[key]);
 			continue;
+		} else if (Array.isArray(object)) {
+			key = object[key];
 		}
 
-		delete parent[key]
+		delete parent[key],
+		Object.keys(parent) < 1 && (parent = null)
 	}
 
 	return parent
@@ -233,6 +246,7 @@ function recursivePurge(parent, object) {
 function recursiveFilter(object, template) {
 	for (let key in object) {
 		if (template[key] === null && template[key] !== object[key]) continue;
+		if (template[key] instanceof Object && Object.keys(template[key]) < 1 && typeof template[key] == typeof object[key]) continue;
 		if (!template.hasOwnProperty(key) || JSON.stringify(object[key]) === JSON.stringify(template[key]) || object[key] === null) {
 			delete object[key];
 		} else if (object[key] instanceof Object) {

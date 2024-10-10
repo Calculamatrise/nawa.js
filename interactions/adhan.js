@@ -4,13 +4,15 @@ export default {
 	contexts: [0, 1, 2],
 	description: "Check the time for the adhan.",
 	async execute(interaction, options) {
-		let location = options.getString('location') || 'Vancouver, BC, Canada';
+		let timezone = await interaction.client.database.users.fetch(interaction.user.id).then(r => r && r.timezone);
+		timezone ||= await interaction.client.database.guilds.fetch(interaction.guild.id).then(r => r && r.timezone),
+		timezone && (timezone = timezone.replace(/.+\//, ''));
+		let location = options.getString('location') || timezone || 'Vancouver, BC, Canada'; // get user option
 		let requestedPrayer = options.getString('prayer');
-		let date = new Date();
 		return Adhan.timings({ address: location, prayer: requestedPrayer }).then(timings => {
 			let prayers = Object.keys(timings);
-			let prayer = timings[Adhan.toPrayer(requestedPrayer || Object.values(timings).find(prayer => prayer.timeRemaining > 0).prayer)];
-			return prayer.prayer + (prayer.timeRemaining < 0 && !prayer.passed ? ' is now!' : ' is at ' + prayer.time + (prayer.offset > 0 ? ' **tomorrow**.' : ''))
+			let prayer = timings[Adhan.toPrayer(requestedPrayer || Object.values(timings).find(prayer => prayer.minutesRemaining > 0).prayer)];
+			return (interaction.context === 0 ? Adhan.wikiPrayer(prayer.prayer) : prayer.prayer) + (prayer.minutesRemaining < 0 && !prayer.passed ? ' is now!' : ' is at ' + prayer.time + (prayer.offset > 0 ? ' **tomorrow**.' : '')) + '\n-# ' + prayer.timezone
 		}).catch(err => {
 			return {
 				content: err.message || "Something went wrong! Failed to find your timezone.",

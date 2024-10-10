@@ -1,4 +1,4 @@
-import { existsSync, readdir, readFile } from "fs";
+import { readdir } from "fs";
 import { extname } from "path";
 import { Client } from "discord.js";
 
@@ -7,15 +7,7 @@ import InteractionHandler from "../handlers/interactions.js";
 import Adhan from "../utils/adhan.js";
 
 export default class extends Client {
-	_defaultPresence = {
-		status: 'idle',
-		activities: [{
-			name: "كلمة الله",
-			type: 2
-		}]
-	};
-	supportServerId = "433783980345655306";
-	commands = new Map();
+	adhanTimers = new Map();
 	database = new DatabaseManager(this);
 	developerMode = /^(dev|test)$/i.test(process.argv.at(2));
 	interactions = new InteractionHandler();
@@ -32,6 +24,39 @@ export default class extends Client {
 				}),
 				writable: true
 			});
+			// await this.database.createStore('channels', {
+			// 	reminders: {
+			// 		adhan: {
+			// 			channelId: null,
+			// 			mentions: {
+			// 				roles: null,
+			// 				users: null
+			// 			}
+			// 		},
+			// 		ayamAlBid: {
+			// 			channelId: null,
+			// 			mentions: {
+			// 				roles: null,
+			// 				users: null
+			// 			}
+			// 		},
+			// 		siyam: {
+			// 			channelId: null,
+			// 			mentions: {
+			// 				roles: null,
+			// 				users: null
+			// 			}
+			// 		},
+			// 		yasum: {
+			// 			channelId: null,
+			// 			mentions: {
+			// 				roles: null,
+			// 				users: null
+			// 			}
+			// 		}
+			// 	},
+			// 	timezone: null
+			// });
 			await this.database.createStore('guilds', {
 				reminders: {
 					adhan: {
@@ -39,32 +64,28 @@ export default class extends Client {
 						mentions: {
 							roles: null,
 							users: null
-						},
-						timezone: null
+						}
 					},
 					ayamAlBid: {
 						channelId: null,
 						mentions: {
 							roles: null,
 							users: null
-						},
-						timezone: null
+						}
 					},
 					siyam: {
 						channelId: null,
 						mentions: {
 							roles: null,
 							users: null
-						},
-						timezone: null
+						}
 					},
 					yasum: {
 						channelId: null,
 						mentions: {
 							roles: null,
 							users: null
-						},
-						timezone: null
+						}
 					}
 				},
 				alerts: {
@@ -82,9 +103,16 @@ export default class extends Client {
 					}
 				},
 				name: null,
-				roles: []
+				roles: [],
+				timezone: null
 			});
-			await this.database.createStore('users', { reminders: [] });
+			await this.database.createStore('users', {
+				// address: null,
+				reminders: [],
+				timezone: null
+			});
+
+			this.initReminder('adhan')
 
 			// let nextPrayer = await Adhan.next('Vancouver, BC, Canada');
 			// this.emit('adhanStart', nextPrayer); // emit for testing
@@ -129,22 +157,29 @@ export default class extends Client {
 		})
 	}
 
-	async config() {
-		if (!existsSync('.env')) return;
-		return new Promise((resolve, reject) => {
-			readFile('.env', (err, data) => {
-				if (err !== null) reject(err);
-				const content = data.toString();
-				if (content.length > 0) {
-					for (const match of content.split('\n')) {
-						const [key, value] = match.split(/[\s=]+/, 2);
-						if (!key || !value) continue;
-						process.env[key] = value;
-					}
-				}
-				resolve()
-			})
-		})
+	async initReminder(reminder) {
+		let timezones = new Set();
+		for (let guild of await this.database.guilds.fetch().then(cache => Array.from(cache.values())).then(e => e.filter(({ reminders: r } = {}) => r && r[reminder]))) {
+			guild.timezone && timezones.add(guild.timezone);
+		}
+
+		for (let user of await this.database.users.fetch().then(cache => Array.from(cache.values())).then(e => e.filter(({ reminders: r } = {}) => r && r.includes(reminder)))) {
+			user.timezone && timezones.add(user.timezone);
+		}
+
+		console.log(timezones)
+		for (let timezone of timezones.values()) {
+			await this.addAdhanTimer(timezone)
+		}
+
+		return timezones
+	}
+
+	async addAdhanTimer(timezone) {
+		if (this.adhanTimers.has(timezone)) return;
+		let nextPrayer = await Adhan.next(timezone.replace(/.+\//, ''));
+		// this.emit('adhanStart', nextPrayer);
+		nextPrayer && this.adhanTimers.set(timezone, setTimeout(this.emit.bind(this), nextPrayer.minutesRemaining * 6e4, 'adhanStart', nextPrayer))
 	}
 
 	async connectClients() {
@@ -174,13 +209,12 @@ export default class extends Client {
 			})
 		});
 
-		this.developerMode && (await this.config(),
-		arguments[0] = process.env.DEV_TOKEN);
+		this.developerMode && (arguments[0] = process.env.DEV_TOKEN);
 		return super.login(...arguments)
 	}
 
 	setCommands() {
-		const { commands } = (this.developerMode ? this.guilds.cache.get(this.supportServerId) : this.application);
+		const { commands } = (this.developerMode ? this.application.guild : this.application);
 		return commands.set(Array.from(this.interactions.values()).reduce((commands, data) => {
 			if (typeof data.menus == 'object' && data.menus !== null) {
 				for (let menu in data.menus) {
@@ -197,19 +231,19 @@ export default class extends Client {
 	setPresence(presence, timeout = 6e4) {
 		presence && (this.#idleTimeout && clearTimeout(this.#idleTimeout),
 		this.#presenceTimeout && clearTimeout(this.#presenceTimeout),
-		this.#presenceTimeout = setTimeout(() => this.user.presence.set(this._defaultPresence), timeout ?? 6e4));
-		return this.user.presence.set(presence || this._defaultPresence)
+		this.#presenceTimeout = setTimeout(this.setPresence.bind(this), timeout ?? 6e4));
+		return this.user.presence.set(presence || this.options.presence)
 	}
 
 	#idleTimeout = null;
 	setIdle(status = true, timeout = 6e4) {
-		status || this.#presenceTimeout || (this.#idleTimeout && clearTimeout(this.#idleTimeout),
-		this.#idleTimeout = setTimeout(() => this.user.setStatus('idle'), timeout ?? 6e4));
+		status || (this.#idleTimeout && clearTimeout(this.#idleTimeout),
+		this.#idleTimeout = setTimeout(this.setIdle.bind(this), timeout ?? 6e4));
 		return this.user.setStatus(status ? 'idle' : 'online')
 	}
 
 	async updateCommands() {
-		const { commands } = (this.developerMode ? this.guilds.cache.get(this.supportServerId) : this.application);
+		const { commands } = (this.developerMode ? this.application.guild : this.application);
 		const live = await commands.fetch();
 		const newCommands = new Map(Array.from(this.interactions.entries()).map(([key, value]) => [key, Object.fromEntries(Object.entries(value).map(([key, value]) => [key, typeof value == 'object' ? Object.assign(new value.constructor, value) : value]))]));
 		// console.log(live)
