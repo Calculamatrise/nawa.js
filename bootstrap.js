@@ -1,5 +1,5 @@
 import Client from "./client/Client.js";
-import { GatewayIntentBits, Partials } from "discord.js";
+import { ActivityType, GatewayIntentBits, Partials } from "discord.js";
 import config from "./utils/env.js";
 
 export const client = new Client({
@@ -16,6 +16,7 @@ export const client = new Client({
 		GatewayIntentBits.GuildMembers,
 		GatewayIntentBits.GuildMessages,
 		GatewayIntentBits.GuildModeration,
+		GatewayIntentBits.GuildVoiceStates,
 		GatewayIntentBits.MessageContent
 	],
 	partials: [
@@ -27,7 +28,7 @@ export const client = new Client({
 		status: 'idle',
 		activities: [{
 			name: "كلمة الله",
-			type: 2
+			type: ActivityType.Listening
 		}]
 	}
 });

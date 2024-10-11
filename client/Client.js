@@ -178,7 +178,7 @@ export default class extends Client {
 	async addAdhanTimer(timezone) {
 		if (this.adhanTimers.has(timezone)) return;
 		let nextPrayer = await Adhan.next(timezone.replace(/.+\//, ''));
-		// this.emit('adhanStart', nextPrayer);
+		this.emit('adhanStart', nextPrayer);
 		nextPrayer && this.adhanTimers.set(timezone, setTimeout(this.emit.bind(this), nextPrayer.minutesRemaining * 6e4, 'adhanStart', nextPrayer))
 	}
 
