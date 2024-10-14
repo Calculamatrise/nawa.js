@@ -1,18 +1,16 @@
-import { ChannelType } from "discord.js";
 import Adhan from "../../utils/adhan.js";
-import { AudioPlayer, AudioPlayerStatus, createAudioResource, joinVoiceChannel, NoSubscriberBehavior, StreamType, VoiceConnectionStatus } from "@discordjs/voice";
 
 export default async function (prayerInfo) {
 	this.setPresence({
 		status: 'online',
 		activities: [{
-			name: prayerInfo.prayer + ' Adhan',
+			name: prayerInfo.prayer + ' Adhan in ' + prayerInfo.timezone,
 			type: 1,
 			url: 'https://twitch.tv/calculamatrise'
 		}]
 	}, 3e5);
-	for (let [guildId, guildData] of this.database.guilds.cache.entries()) {
-		if (!guildData.reminders || !guildData.reminders.adhan || (guildData.timezone && guildData.timezone !== prayerInfo.timezone)) continue;
+	let guilds = Array.from(this.database.guilds.cache.entries()).filter(([guildId, guildData]) => (!guildData.timezone || guildData.timezone === prayerInfo.timezone) && guildData.reminders && 'adhan' in guildData.reminders)
+	for (let [guildId, guildData] of guilds) {
 		let config = guildData.reminders.adhan;
 		this.channels.fetch(config.channelId).then(channel => {
 			let suffix = '\n-# ' + prayerInfo.timezone; // '';
@@ -28,7 +26,7 @@ export default async function (prayerInfo) {
 			console.warn('[AdhanStart]', err.message || 'Channel not found!');
 			return this.database.guilds.delete(guildId, { reminders: ['adhan'] })
 		});
-		callAdhan.call(this, guildId)
+		this.adhanManager.addSubscriber(guildId, prayerInfo.timezone, { expected: guilds.length })
 	}
 
 	for (let [userId, userData] of this.database.users.cache.entries()) {
@@ -53,46 +51,4 @@ export default async function (prayerInfo) {
 	let nextPrayer = await Adhan.next(prayerInfo.address);
 	nextPrayer || console.warn('[AdhanStart] Next prayer not found!', nextPrayer);
 	nextPrayer && this.adhanTimers.set(prayerInfo.timezone, setTimeout(this.emit.bind(this), nextPrayer.minutesRemaining * 6e4, 'adhanStart', nextPrayer))
-}
-
-async function callAdhan(guildId) {
-	let guild = await this.guilds.fetch(guildId);
-	let voiceChannels = guild.voiceStates.cache.map(voiceState => voiceState.channel);
-	if (voiceChannels.length < 1) {
-		voiceChannels = guild.channels.cache.filter(channel => channel.type == ChannelType.GuildVoice || channel.type == ChannelType.GuildStageVoice);
-		voiceChannels.sort((a, b) => a.rawPosition - b.rawPosition);
-		voiceChannels = Array.from(voiceChannels.values());
-		if (voiceChannels.length < 1) {
-			return;
-		}
-	}
-
-	let voiceChannel = voiceChannels[0];
-	let audioPlayer = new AudioPlayer({ behaviors: { noSubscriber: NoSubscriberBehavior.Play }});
-	audioPlayer.on('stateChange', (oldState, newState) => {
-		switch (newState.status) {
-		case AudioPlayerStatus.Idle:
-			connection.destroy()
-			// end streaming status
-		}
-	});
-
-	let connection = joinVoiceChannel({
-		adapterCreator: guild.voiceAdapterCreator,
-		channelId: voiceChannel.id,
-		guildId: guildId,
-		selfDeaf: true
-	});
-	connection.on('stateChange', (oldState, newState) => {
-		switch (newState.status) {
-		case VoiceConnectionStatus.Ready:
-			let audioResource = createAudioResource('./assets/a' + 2 + '.mp3', {
-				inlineVolume: true,
-				inputType: StreamType.Raw
-			});
-			audioPlayer.play(audioResource)
-		}
-	});
-
-	connection.subscribe(audioPlayer)
 }

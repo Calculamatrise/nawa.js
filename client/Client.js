@@ -2,11 +2,14 @@ import { readdir } from "fs";
 import { extname } from "path";
 import { Client } from "discord.js";
 
+import AdhanManager from "../managers/adhan.js";
 import DatabaseManager from "../managers/database.js";
 import InteractionHandler from "../handlers/interactions.js";
 import Adhan from "../utils/adhan.js";
 
 export default class extends Client {
+	adhanManager = new AdhanManager(this);
+	adhanPlayers = new Map();
 	adhanTimers = new Map();
 	database = new DatabaseManager(this);
 	developerMode = /^(dev|test)$/i.test(process.argv.at(2));
@@ -178,7 +181,7 @@ export default class extends Client {
 	async addAdhanTimer(timezone) {
 		if (this.adhanTimers.has(timezone)) return;
 		let nextPrayer = await Adhan.next(timezone.replace(/.+\//, ''));
-		this.emit('adhanStart', nextPrayer);
+		// this.emit('adhanStart', nextPrayer);
 		nextPrayer && this.adhanTimers.set(timezone, setTimeout(this.emit.bind(this), nextPrayer.minutesRemaining * 6e4, 'adhanStart', nextPrayer))
 	}
 
